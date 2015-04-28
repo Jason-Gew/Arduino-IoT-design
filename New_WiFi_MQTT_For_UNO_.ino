@@ -20,11 +20,11 @@ By Ge Wu
 
 // Update these with values for your network.
 byte mac[] = { 0xA3, 0x2D, 0x3A, 0xCE, 0x12, 0xAB };    //Change for your unique MAC address
-byte server[] = { 54, 191, 2, 249 };                    //C2M MQTT Server
-char ssid[] = "";                            // Replace for The Wireless Network SSID (name) 
-char pass[] = "";                        // Replace for The Network password
+byte server[] = { 54, 191, 2, 249 };  //C2M MQTT Server
+char ssid[] = "";                     // Replace for The Wireless Network SSID 
+char pass[] = "";                     // Replace for The Network password
 char topic[] = "";                    //Replace for the Topic of your specific project!
-int status = WL_IDLE_STATUS;                     // Status of WiFi network
+int status = WL_IDLE_STATUS;          // Status of WiFi network
 
 char apikey[]=""; //Replace for your own C2M API (Find from your account)
 char feedid[]=""; //Replace for your own C2M FeedID (Find from your account)
@@ -94,7 +94,7 @@ void loop()
    strcat(str,",feed=Light,");
    strcat(str,getInt(readlight(analogRead(0))));
    strcat(str,"|Proximity,0|Humidity,");
-   int Humi_value = Sensor_DHT11(1);
+   int Humi_value = Sensor_DHT11(1);  //Read the Humidity
    strcat(str,getInt(Humi_value));
    strcat(str,"|Temperature,");
    int Temp_value1 = Sensor_DHT11(2); //Read the Temp
