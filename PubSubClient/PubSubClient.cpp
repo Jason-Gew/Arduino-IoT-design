@@ -4,7 +4,6 @@ Nicholas O'Leary
 http://knolleary.net
 */
 
-//write function modified by Scott Carlson
 
 #include "PubSubClient.h"
 #include <string.h>

@@ -1,5 +1,5 @@
-/*****************************************************/
-/*      Arduino UNO with Arduino WiFi Shield         */
+/*******************************************************/
+/*       Arduino UNO with Arduino WiFi Shield          */
 /*
 This program helps you to update data from the sensors 
 to C2M Cloud based on MQTT protocol. 
@@ -7,10 +7,10 @@ Design for Internet of Things edge device!
 Change ssid, password, topic everytime for your
 unique parameters.
 Message format should be
-apikey={apikey},feedID={feedid},feed=para1,value|para2,value|para3,value
+apikey="apikey",feedID="feedid",feed=para1,value|para2,value|para3,value
 Compiled Successful on Feb 2 2015
-By Ge Wu
-/****************************************************/
+By Jason/Ge Wu
+/******************************************************/
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <WiFiServer.h>
@@ -19,11 +19,11 @@ By Ge Wu
 
 
 // Update these with values for your network.
-byte mac[] = { 0xA3, 0x2D, 0x3A, 0xCE, 0x12, 0xAB };    //Change for your unique MAC address
+byte mac[] = { 0xAC, 0xAD, 0x3A, 0xCE, 0xAB, 0xAD };    //Change for your unique MAC address
 byte server[] = { 54, 191, 2, 249 };  //C2M MQTT Server
 char ssid[] = "";                     // Replace for The Wireless Network SSID 
 char pass[] = "";                     // Replace for The Network password
-char topic[] = "";                    //Replace for the Topic of your specific project!
+char topic[] = "";                    //Replace for the Topic of your specific project! Like "Product_1"
 int status = WL_IDLE_STATUS;          // Status of WiFi network
 
 char apikey[]=""; //Replace for your own C2M API (Find from your account)
@@ -62,7 +62,7 @@ void setup()
      }
       while ( status != WL_CONNECTED) 
       {
-          Serial.print("Attempting to connect to WPA SSID: ");
+          Serial.print("Attempting to connect to WiFi SSID: ");
           Serial.println(ssid);
           status = WiFi.begin(ssid, pass);
           delay(10000);
@@ -74,7 +74,6 @@ void setup()
 
 void loop()
 {
-
   Serial.println("Connecting to C2M_MQTT Server...");
   if(!client.connected())
   {
@@ -110,7 +109,7 @@ void loop()
     {
          Serial.println("Publish Fail."); 
     }
-    delay(50000);
+    delay(2000);   //Reduce or increase the delay time for your own project
     client.loop();
 }
 
@@ -153,22 +152,21 @@ void printCurrentNet()
 // convert raw light data from sensor to percentage
 // To calculate, we multiply the number by 1.1/1024, and
 //take the percentage value out of 0.99 volts. 
-int readlight(unsigned int lt){     
-
+int readlight(unsigned int lt)
+{     
   float tmpflt = (float)lt*1.1/1024;
   int percent;
   
-    if(tmpflt > 1.10)  //error handling
+  if(tmpflt > 1.10)  //error handling
       return 0;
-    if(tmpflt < 0.00)
+  if(tmpflt < 0.00)
       return 0;  
   
-    percent = 100*(0.99-tmpflt);
-   
-    if(percent > 100)
-       percent = 100;
-    if(percent < 0 )
-       percent = 0;  
+  percent = 100*(0.99-tmpflt); 
+  if(percent > 100)
+     percent = 100;
+  if(percent < 0 )
+     percent = 0;  
        
   return percent;
 }
