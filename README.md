@@ -1,5 +1,5 @@
 # Arduino-IoT-design
-# Designer: Jason/Ge Wu   jason.ge.wu@gmail.com
+Designer: Jason/Ge Wu   jason.ge.wu@gmail.com
 
 This is an IoT edge design in order to upload sensor data to the cloud server. Hardware base on Arduino UNO and WiFi. 
 Communication based on MQTT protocol.
