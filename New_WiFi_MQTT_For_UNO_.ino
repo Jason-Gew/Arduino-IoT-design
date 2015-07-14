@@ -16,10 +16,10 @@ By Jason/Ge Wu
 #include <WiFiServer.h>
 #include "dht11.h"         //Library of the Humidity Sensor DHT11
 #include "PubSubClient.h"  //Library of the MQTT Protocol
-
+#include <SPI.h>
 
 // Update these with values for your network.
-byte mac[] = { 0xAC, 0xAD, 0x3A, 0xCE, 0xAB, 0xAD };    //Change for your unique MAC address
+byte mac[] = { 0x1A, 0x2B, 0x3C, 0x4D, 0x5E, 0x6F };    //Change for your unique MAC address
 byte server[] = { 54, 191, 2, 249 };  //C2M MQTT Server
 char ssid[] = "";                     // Replace for The Wireless Network SSID 
 char pass[] = "";                     // Replace for The Network password
@@ -91,7 +91,7 @@ void loop()
    strcat(str,",feedid:");
    strcat(str,feedid);
    strcat(str,",feed=Light,");
-   strcat(str,getInt(readlight(analogRead(0))));
+   strcat(str,getInt(readlight(analogRead(A0))));
    strcat(str,"|Proximity,0|Humidity,");
    int Humi_value = Sensor_DHT11(1);  //Read the Humidity
    strcat(str,getInt(Humi_value));
