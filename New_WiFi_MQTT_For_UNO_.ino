@@ -20,7 +20,7 @@ By Jason/Ge Wu
 
 // Update these with values for your network.
 byte mac[] = { 0x1A, 0x2B, 0x3C, 0x4D, 0x5E, 0x6F };    //Change for your unique MAC address
-byte server[] = { 54, 191, 2, 249 };  //C2M MQTT Server
+byte server[] = { 199, 108, 99, 62 };  //C2M MQTT Server
 char ssid[] = "";                     // Replace for The Wireless Network SSID 
 char pass[] = "";                     // Replace for The Network password
 char topic[] = "";                    //Replace for the Topic of your specific project! Like "Product_1"
@@ -74,42 +74,43 @@ void setup()
 
 void loop()
 {
-  Serial.println("Connecting to C2M_MQTT Server...");
-  if(!client.connected())
-  {
-    client.connect(topic);
-    Serial.println("Connected to the Server.");
-    delay(5000);
-  }
-  else
-  {
-     Serial.println("Connection Fail.");
-  }
-   memset(str,'\0',200);
-   strcat(str,"apikey:");
-   strcat(str,apikey);
-   strcat(str,",feedid:");
-   strcat(str,feedid);
-   strcat(str,",feed=Light,");
-   strcat(str,getInt(readlight(analogRead(A0))));
-   strcat(str,"|Proximity,0|Humidity,");
-   int Humi_value = Sensor_DHT11(1);  //Read the Humidity
-   strcat(str,getInt(Humi_value));
-   strcat(str,"|Temperature,");
-   int Temp_value1 = Sensor_DHT11(2); //Read the Temp
-   strcat(str,getInt(Temp_value1));
+
+    memset(str,'\0',200);
+    strcat(str,"apikey:");
+    strcat(str,apikey);
+    strcat(str,",feedid:");
+    strcat(str,feedid);
+    strcat(str,",feed=Light,");
+    strcat(str,getInt(readlight(analogRead(A0))));
+    strcat(str,"|Proximity,0|Humidity,");
+    int Humi_value = Sensor_DHT11(1);  //Read the Humidity
+    strcat(str,getInt(Humi_value));
+    strcat(str,"|Temperature,");
+    int Temp_value1 = Sensor_DHT11(2); //Read the Temp
+    strcat(str,getInt(Temp_value1));
+      
+    Serial.println(str);  //Check the Message 
+    Serial.println("Connecting to C2M_MQTT Server...");
+    if(!client.connected())
+    {
+        client.connect(topic);
+        Serial.println("Connected to the Server.");
+        delay(1000);
+        if(client.publish(topic,str)) 
+        {
+            Serial.println("Publish Success.");
+        }
+        else 
+        {
+            Serial.println("Publish Fail."); 
+        }
+    }
+    else
+    {
+        Serial.println("Connection Fail.");
+    }     
     
-   Serial.println(str);  //Check the Message 
-       
-    if(client.publish(topic,str)) 
-    {
-        Serial.println("Publish Success.");
-    }
-    else 
-    {
-         Serial.println("Publish Fail."); 
-    }
-    delay(2000);   //Reduce or increase the delay time for your own project
+    delay(5000);   //Reduce or increase the delay time for your own project
     client.loop();
 }
 
@@ -162,7 +163,7 @@ int readlight(unsigned int lt)
   if(tmpflt < 0.00)
       return 0;  
   
-  percent = 100*(0.99-tmpflt); 
+  percent = 100*(tmpflt); 
   if(percent > 100)
      percent = 100;
   if(percent < 0 )
