@@ -1,8 +1,8 @@
 /*****************************************************************************
- *  GPS Data Logger
- * 
- * 
- * 
+ *  GPS Data Logger for UART GPS Module + Arduino Mega + SD Card
+ *  Sketch requires TInyGPS++ Library 
+ *  By Jason-Gew 
+ *  On Dec/30/2016
  ****************************************************************************/
 //#include <SoftwareSerial.h>	# Use Software Serial when no additional Serial Port
 #include <TinyGPS++.h>
@@ -14,11 +14,14 @@
 //static const int STX = 7;
 
 static const int GPS_BAUD = 9600;
-static const int sd_select = 4;
+static const int sd_select = 4; // SPI CS Pin
 
-#define log_file "GPS.csv"
-#define log_rate 10000   // ms * 1000 = second
+#define log_file "gpslog"
+#define file_suffix "csv"
+#define max_files 100
+#define log_rate 10000   // ms/1000 = second
 char file_name[14];
+
 // If column number or name is changed, please also change corresponding settings in each function.
 const int parameter_num = 6;
 char * column_names[parameter_num] = {"Latitude", "Longitude", "Date", "Time", "Altitude", "Speed"};
@@ -44,6 +47,7 @@ void setup()
 	if (!SD.begin(sd_select))
 	{
 		Serial.println(F("-> Initializing SD Card Failed!"));
+   Serial.println(F("-> Please check the SD Card and Restart the Program!"));
 		sd_status = false;		
 	}
 	else
@@ -52,7 +56,10 @@ void setup()
 		sd_status = true;
 	}
 	if (sd_status)
+	{
+		start_new_file();
 		printHeader();
+	}
 
 	Serial.println(F("-> Waiting for GPS Signal ..."));
 	Serial.println(F("-----------------------------------------------------------------"));
@@ -114,7 +121,7 @@ void loop()
 
 int logGPSData()
 {
-	File logFile = SD.open(log_file, FILE_WRITE); // Open the log file
+	File logFile = SD.open(file_name, FILE_WRITE); // Open the log file
 
 	if (logFile)
 	{ // Print longitude, latitude, altitude (in feet), speed (in mph), course
@@ -153,13 +160,16 @@ int logGPSData()
 
 		return 1; // Return success
 	}
-
-	return 0; // If we failed to open the file, return fail
+	else
+	{
+		return 0; // If we failed to open the file, return fail
+	}
+	
 }
 
 bool printHeader()
 {
-	File logFile = SD.open(log_file, FILE_WRITE);
+	File logFile = SD.open(file_name, FILE_WRITE);
 	if (logFile)
 	{
 		for(int i = 0; i < parameter_num; i++)
@@ -181,6 +191,27 @@ bool printHeader()
 	{
 		return false;
 	}
+}
+
+bool start_new_file()
+{
+	for (int i = 0; i < max_files; i++)
+	{
+		memset(file_name, 0, strlen(file_name)); 
+		sprintf(file_name, "%s%d.%s", log_file, i, file_suffix);
+		if ( !SD.exists(file_name))
+		{	
+			Serial.print(file_name);
+			Serial.println(F(" create success."));
+			break;
+		}
+		else
+		{
+			Serial.print(F("Current Exist File: "));
+			Serial.println(file_name);
+		}
+	}
+
 }
 
 static void printDateTime(TinyGPSDate &d, TinyGPSTime &t)
