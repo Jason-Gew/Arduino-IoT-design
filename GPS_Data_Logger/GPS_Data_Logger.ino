@@ -17,10 +17,11 @@ static const int GPS_BAUD = 9600;
 static const int sd_select = 4;
 
 #define log_file "GPS.csv"
-#define log_rate 5000
+#define log_rate 10000   // ms * 1000 = second
 char file_name[14];
 // If column number or name is changed, please also change corresponding settings in each function.
-char * column_names[9] = {"Date", "Time", "Latitude", "Longitude", "Fix", "Satellite", "Altitude", "Speed", "Course"}
+const int parameter_num = 6;
+char * column_names[parameter_num] = {"Latitude", "Longitude", "Date", "Time", "Altitude", "Speed"};
 unsigned long last_log = 0;
 bool sd_status = false;
 
@@ -47,28 +48,40 @@ void setup()
 	}
 	else
 	{
-		Serial.println(F("-> SD Card Initialized!"));
+		Serial.println(F("-> SD Card Initialized!\n"));
 		sd_status = true;
 	}
 	if (sd_status)
 		printHeader();
 
-	Serial.println(F("Date      Time    Latitude   Longitude   Fix    Satellites      Alt    Course   Speed"));
-	Serial.println(F("                    (deg)      (deg)     Age      Number        (m)                  "));
-	Serial.println(F("-------------------------------------------------------------------------------------"));
+	Serial.println(F("-> Waiting for GPS Signal ..."));
+	Serial.println(F("-----------------------------------------------------------------"));
+	Serial.println(F("   Date      Time     Latitude   Longitude   Fix  Sats Alt Speed"));
+	Serial.println(F("(MM/DD/Year) (24)      (deg)       (deg)     Age  (No) (m) (km/h)"));
+	Serial.println(F("-----------------------------------------------------------------"));
 }
 
 void loop() 
 {
 	if ((last_log + log_rate) <= millis())
 	{
-		if (tinyGPS.location.isUpdated())
+		if (gps.location.isUpdated())
 		{
-			store = logGPSData();
+			printDateTime(gps.date, gps.time);
+			Serial.print(F("  "));
+			printFloat(gps.location.lat(), true, 11, 6);
+			printFloat(gps.location.lng(), true, 12, 6);
+			printInt(gps.location.age(), true, 5);
+			printInt(gps.satellites.value(), gps.satellites.isValid(), 5);
+			printFloat(gps.altitude.meters(), gps.altitude.isValid(), 7, 2);
+			printFloat(gps.speed.kmph(), gps.speed.isValid(), 6, 2);
+			Serial.println();
+
+			int store = logGPSData();
 			switch (store)
 			{
 				case 0:
-					Serial.println(F("-> Failed to store GPS data to log..."));
+					Serial.println(F("-> Failed to store GPS data to SD log..."));
 					break;
 
 				case 1:
@@ -81,10 +94,15 @@ void loop()
 
 			}
 		}
+		else if (sd_status == false and gps.satellites.value() >= 3)
+		{
+			delay(10);
+		}
 		else
 		{
-			Serial.print(F("-> No GPS Data, Current Satellite Number: "));
-			Serial.println(F(gps.satellites.value()));
+			Serial.print(F("-> Waiting for GPS data, Current Satellite Number: "));
+			Serial.println(gps.satellites.value());
+			delay(10);
 		}
 	}
 	while (Serial1.available())
@@ -96,28 +114,40 @@ void loop()
 
 int logGPSData()
 {
-	File logFile = SD.open(logFileName, FILE_WRITE); // Open the log file
+	File logFile = SD.open(log_file, FILE_WRITE); // Open the log file
 
 	if (logFile)
 	{ // Print longitude, latitude, altitude (in feet), speed (in mph), course
 	// in (degrees), date, time, and number of satellites.
-		logFile.print(gps.date.value());
-		logFile.print(',');
-		logFile.print(gps.time.value());
-		logFile.print(',');
+
 		logFile.print(gps.location.lat(), 6);
 		logFile.print(',');
 		logFile.print(gps.location.lng(), 6);
 		logFile.print(',');
-		logFile.print(gps.location.age());
+		char date[11];
+		if (gps.date.isValid())
+		{
+			sprintf(date, "%02d/%02d/%02d ", gps.date.month(), gps.date.day(),gps.date.year());
+		}		
+		logFile.print(date);
 		logFile.print(',');
-		logFile.print(gps.satellites.value());
+		char time[10];
+		if (gps.time.isValid())
+		{
+			sprintf(time, "%02d:%02d:%02d ", gps.time.hour(), gps.time.minute(), gps.time.second());	
+		}
+		logFile.print(time);
 		logFile.print(',');
-		logFile.print(gps.altitude.meters(), 1);
+		if (gps.altitude.isValid())
+		{
+			logFile.print(gps.altitude.meters(), 1);
+		}
+		else
+		{
+			logFile.print(0, 1);
+		}
 		logFile.print(',');
-		logFile.print(gps.speed.mph(), 1);
-		logFile.print(',');
-		logFile.print(gps.course.deg(), 1);
+		logFile.print(gps.speed.kmph(), 1);
 		logFile.println();
 		logFile.close();
 
@@ -132,10 +162,10 @@ bool printHeader()
 	File logFile = SD.open(log_file, FILE_WRITE);
 	if (logFile)
 	{
-		for(int i = 0; i < 9; i++)
+		for(int i = 0; i < parameter_num; i++)
 		{
 			logFile.print(column_names[i]);
-			if (i < 8)
+			if (i < parameter_num - 1)
 			{
 				logFile.print(',');
 			}
@@ -157,7 +187,7 @@ static void printDateTime(TinyGPSDate &d, TinyGPSTime &t)
 {
 	if (!d.isValid())
 	{
-		Serial.print(F("********** "));
+		Serial.print(F("****/**/** "));
 	}
 	else
 	{
@@ -168,15 +198,48 @@ static void printDateTime(TinyGPSDate &d, TinyGPSTime &t)
   
 	if (!t.isValid())
 	{
-		Serial.print(F("******** "));
+		Serial.print(F("**:**:** "));
 	}
 	else
 	{
-		har sz[32];
+		char sz[32];
 		sprintf(sz, "%02d:%02d:%02d ", t.hour(), t.minute(), t.second());
 		Serial.print(sz);
 	}
 
-	printInt(d.age(), d.isValid(), 5);
-	smartDelay(0);
+//	smartDelay(0);
+}
+
+static void printInt(unsigned long val, bool valid, int len)
+{
+	char sz[32] = "*****************";
+	if (valid)
+		sprintf(sz, "%ld", val);
+	sz[len] = 0;
+	for (int i=strlen(sz); i<len; ++i)
+		sz[i] = ' ';
+	if (len > 0) 
+		sz[len-1] = ' ';
+	Serial.print(sz);
+//	smartDelay(0);
+}
+
+static void printFloat(float val, bool valid, int len, int prec)
+{
+	if (!valid)
+	{
+		while (len-- > 1)
+			Serial.print('*');
+		Serial.print(' ');
+	}
+	else
+	{
+		Serial.print(val, prec);
+		int vi = abs((int)val);
+		int flen = prec + (val < 0.0 ? 2 : 1); // . and -
+		flen += vi >= 1000 ? 4 : vi >= 100 ? 3 : vi >= 10 ? 2 : 1;
+		for (int i=flen; i<len; ++i)
+			Serial.print(' ');
+	}
+//	smartDelay(0);
 }
