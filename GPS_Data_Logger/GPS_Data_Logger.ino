@@ -18,13 +18,13 @@ static const int sd_select = 4; // SPI CS Pin
 
 #define log_file "gpslog"
 #define file_suffix "csv"
-#define max_files 100
-#define log_rate 10000   // ms/1000 = second
-char file_name[14];
+#define max_files 199		// Max Record File Number
+#define log_rate 30000		// ms/1000 = second
+char file_name[14];			// Limit the Length of File Name
 
 // If column number or name is changed, please also change corresponding settings in each function.
 const int parameter_num = 6;
-char * column_names[parameter_num] = {"Latitude", "Longitude", "Date", "Time", "Altitude", "Speed"};
+char * column_names[parameter_num] = {"Latitude", "Longitude", "UTC Date", "UTC Time", "Altitude", "Speed"};
 unsigned long last_log = 0;
 bool sd_status = false;
 
@@ -35,19 +35,17 @@ TinyGPSPlus gps;
 // The serial connection to the GPS device
 //SoftwareSerial ss(SRX, STX);
 
-
-
-
+/************** Functions **************/
 void setup() 
 {
 	Serial.begin(9600);
 	Serial1.begin(GPS_BAUD);
 
-	Serial.println(F("-> Setting Up SD Card..."));
+	Serial.println(F("\n-> GPS SD Log System Initializing..."));
 	if (!SD.begin(sd_select))
 	{
 		Serial.println(F("-> Initializing SD Card Failed!"));
-   Serial.println(F("-> Please check the SD Card and Restart the Program!"));
+		Serial.println(F("***** Please check the SD Card and Restart the Program *****"));
 		sd_status = false;		
 	}
 	else
@@ -62,10 +60,10 @@ void setup()
 	}
 
 	Serial.println(F("-> Waiting for GPS Signal ..."));
-	Serial.println(F("-----------------------------------------------------------------"));
-	Serial.println(F("   Date      Time     Latitude   Longitude   Fix  Sats Alt Speed"));
-	Serial.println(F("(MM/DD/Year) (24)      (deg)       (deg)     Age  (No) (m) (km/h)"));
-	Serial.println(F("-----------------------------------------------------------------"));
+	Serial.println(F("---------------------------------------------------------------------"));
+	Serial.println(F("   Date      Time     Latitude   Longitude   Fix  Sats   Alt   Speed"));
+	Serial.println(F("(MM/DD/Year) (24)      (deg)       (deg)     Age  (No)   (m)   (km/h)"));
+	Serial.println(F("---------------------------------------------------------------------"));
 }
 
 void loop() 
@@ -79,8 +77,10 @@ void loop()
 			printFloat(gps.location.lat(), true, 11, 6);
 			printFloat(gps.location.lng(), true, 12, 6);
 			printInt(gps.location.age(), true, 5);
+			Serial.print(F(" "));
 			printInt(gps.satellites.value(), gps.satellites.isValid(), 5);
 			printFloat(gps.altitude.meters(), gps.altitude.isValid(), 7, 2);
+			Serial.print(F(" "));
 			printFloat(gps.speed.kmph(), gps.speed.isValid(), 6, 2);
 			Serial.println();
 
@@ -103,13 +103,13 @@ void loop()
 		}
 		else if (sd_status == false and gps.satellites.value() >= 3)
 		{
-			delay(10);
+			delay(50);
 		}
 		else
 		{
-			Serial.print(F("-> Waiting for GPS data, Current Satellite Number: "));
+			Serial.print(F("-> Waiting for better GPS data, Current Satellite Number: "));
 			Serial.println(gps.satellites.value());
-			delay(10);
+			delay(50);
 		}
 	}
 	while (Serial1.available())
@@ -127,21 +127,36 @@ int logGPSData()
 	{ // Print longitude, latitude, altitude (in feet), speed (in mph), course
 	// in (degrees), date, time, and number of satellites.
 
-		logFile.print(gps.location.lat(), 6);
-		logFile.print(',');
-		logFile.print(gps.location.lng(), 6);
-		logFile.print(',');
-		char date[11];
+		if (gps.location.isValid())
+		{
+			logFile.print(gps.location.lat(), 6);
+			logFile.print(',');
+			logFile.print(gps.location.lng(), 6);
+			logFile.print(',');
+		}
+		else
+		{
+			logFile.print(",,");
+		}
+		char date[10];
 		if (gps.date.isValid())
 		{
-			sprintf(date, "%02d/%02d/%02d ", gps.date.month(), gps.date.day(),gps.date.year());
-		}		
+			sprintf(date, "%02d/%02d/%02d", gps.date.month(), gps.date.day(),gps.date.year());
+		}
+		else
+		{
+			sprintf(date, "");
+		}
 		logFile.print(date);
 		logFile.print(',');
-		char time[10];
+		char time[8];
 		if (gps.time.isValid())
 		{
-			sprintf(time, "%02d:%02d:%02d ", gps.time.hour(), gps.time.minute(), gps.time.second());	
+			sprintf(time, "%02d:%02d:%02d", gps.time.hour(), gps.time.minute(), gps.time.second());	
+		}
+		else 
+		{
+			sprintf(time, "");
 		}
 		logFile.print(time);
 		logFile.print(',');
@@ -193,9 +208,9 @@ bool printHeader()
 	}
 }
 
-bool start_new_file()
+void start_new_file()
 {
-	for (int i = 0; i < max_files; i++)
+	for (int i = 1; i < max_files; i++)
 	{
 		memset(file_name, 0, strlen(file_name)); 
 		sprintf(file_name, "%s%d.%s", log_file, i, file_suffix);
@@ -205,10 +220,21 @@ bool start_new_file()
 			Serial.println(F(" create success."));
 			break;
 		}
-		else
+		else if ( i == max_files-1 )
 		{
-			Serial.print(F("Current Exist File: "));
-			Serial.println(file_name);
+			Serial.println(F("GPS Record Files Has Reach the MAX Number!\nPlease Clear the SD Log!"));
+			
+		}
+		else
+		{	
+			File content = SD.open(file_name);
+
+			Serial.print(F("Current GPS Data File: "));
+			Serial.print(file_name);
+			Serial.print(F(" | Size: "));
+			Serial.print(content.size(), DEC);
+			Serial.println(F(" Bytes"));
+			content.close();
 		}
 	}
 
@@ -252,7 +278,6 @@ static void printInt(unsigned long val, bool valid, int len)
 	if (len > 0) 
 		sz[len-1] = ' ';
 	Serial.print(sz);
-//	smartDelay(0);
 }
 
 static void printFloat(float val, bool valid, int len, int prec)
@@ -272,5 +297,4 @@ static void printFloat(float val, bool valid, int len, int prec)
 		for (int i=flen; i<len; ++i)
 			Serial.print(' ');
 	}
-//	smartDelay(0);
 }
