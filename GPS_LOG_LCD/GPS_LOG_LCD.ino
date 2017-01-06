@@ -1,12 +1,15 @@
 /*****************************************************************************
- *  GPS Data Logger for UART GPS Module + Arduino UNO and MEGA + SD Card
- *  Sketch requires TInyGPS++ Library 
-
+ *  GPS Data Logger for UART GPS Module + Arduino Uno/Mega + SD Card + LCD1602
+ *  Module Will Create .cvs log file into SD Card with GPS information.
+ *	Real-Time GPS data will be displayed on LCD1602.
+ *  Sketch requires TInyGPS++ and Grove rgb_lcd Library 
+ *
  *  By Jason-Gew 
- *  On Dec/30/2016
+ *  On Dec/31/2016
  ****************************************************************************/
-//#include <SoftwareSerial.h>	# Use Software Serial when no additional Serial Port
 #include <TinyGPS++.h>
+#include "rgb_lcd.h"
+#include <Wire.h>
 #include <SPI.h>
 #include <SD.h>
 
@@ -14,23 +17,24 @@
 static const int GPS_BAUD = 9600;
 static const int sd_select = 4; // SPI CS Pin
 
-#define Arduino_UNO		// Choose the Arduino Board First, comment the other
-//#define Arduino_MEGA
+//#define Arduino_UNO
+#define Arduino_MEGA
 
 #define log_file "gpslog"
 #define file_suffix "csv"
-#define max_files 199		// Max Record File Number
-#define log_rate 30000		// ms/1000 = second
+#define max_files 199		// Max Record File Number	
+#define log_rate 28000		// ms/1000 = second
 char file_name[14];			// Limit the Length of File Name
 
 // If column number or name is changed, please also change corresponding settings in each function.
-const int parameter_num = 6;
-char * column_names[parameter_num] = {"Latitude", "Longitude", "UTC Date", "UTC Time", "Altitude", "Speed"};
+const int parameter_num = 2;
+//char * column_names[parameter_num] = {"Latitude", "Longitude", "UTC Date", "UTC Time", "Altitude", "Speed"};
+char * column_names[parameter_num] = {"Latitude", "Longitude"};
 unsigned long last_log = 0;
 bool sd_status = false;
 
 /*************************************/
-// The TinyGPS++ object
+// The TinyGPS++ Object
 TinyGPSPlus gps;
 
 #ifdef Arduino_UNO
@@ -39,9 +43,12 @@ TinyGPSPlus gps;
 	SoftwareSerial ss(SRX, STX);
 #endif
 
-/************** Functions **************/
+// LCD OBject
+rgb_lcd lcd;
+
 void setup() 
 {
+	lcd.begin(16, 2);
 	Serial.begin(9600);
 
 #ifdef Arduino_MEGA
@@ -52,22 +59,47 @@ void setup()
 	ss.begin(GPS_BAUD);
 #endif
 
-	Serial.println(F("\n-> GPS SD Log System Initializing..."));
+	lcd.setCursor(0, 0);
+	lcd.print(" GPS Log System ");
+	lcd.setCursor(0, 1);
+	lcd.print(" -- Jason Wu -- ");
+	delay(2500);
+	lcd.clear();
+  
+	Serial.println(F("\n-> GPS Data (SD) Log System Initializing..."));
+	lcd.setCursor(0, 0);
+	lcd.print("GPS System ");
+	lcd.setCursor(0, 1);
+	lcd.blink();
+	lcd.print("   Initializing");
+  
+  
 	if (!SD.begin(sd_select))
 	{
 		Serial.println(F("-> Initializing SD Card Failed!"));
 		Serial.println(F("***** Please Check the SD Card and Restart the Program *****"));
-		sd_status = false;		
+		sd_status = false;
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("SD Card Failed!");
+		delay(50);
+		lcd.setRGB(250, 100, 10);
 	}
 	else
 	{
 		Serial.println(F("-> SD Card Initialized!\n"));
 		sd_status = true;
+
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("SD Card Loaded!");
+		delay(50);
+		lcd.setRGB(150, 255, 0);
 	}
 	if (sd_status)
 	{
 		start_new_file();
-		printHeader();
+
 	}
 
 	Serial.println(F("-> Waiting for GPS Signal ..."));
@@ -75,6 +107,12 @@ void setup()
 	Serial.println(F("   Date      Time     Latitude   Longitude   Fix  Sats   Alt   Speed"));
 	Serial.println(F("(MM/DD/Year) (24)      (deg)       (deg)     Age  (No)   (m)   (km/h)"));
 	Serial.println(F("---------------------------------------------------------------------"));
+
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("Waiting For GPS");
+	lcd.setCursor(0, 1);
+	lcd.print(file_name);	
 }
 
 void loop() 
@@ -95,16 +133,54 @@ void loop()
 			printFloat(gps.speed.kmph(), gps.speed.isValid(), 6, 2);
 			Serial.println();
 
+			lcd.clear();
+			lcd.noBlink();
+			lcd.setCursor(3, 0);
+			char date[11];
+			sprintf(date, "%02d-%02d-%02d ", gps.date.year(), gps.date.month(), gps.date.day());
+			lcd.print(date);
+			lcd.setCursor(4, 1);
+			char ts[9];
+			sprintf(ts, "%02d:%02d:%02d ", gps.time.hour(), gps.time.minute(), gps.time.second());
+			lcd.print(ts);
+			delay(3000);
+
+			lcd.clear();
+			lcd.setCursor(0, 0);
+			lcd.print("Lat: ");
+			lcd.print(gps.location.lat(),6);
+			lcd.setCursor(0, 1);
+			lcd.print("Lng: ");
+			lcd.print(gps.location.lng(),6);
+			delay(3000);
+
+			lcd.clear();
+			lcd.setCursor(0, 0);
+			lcd.print("Speed: ");
+			lcd.print(gps.speed.kmph(),1);
+			lcd.print(" km/h");
+			lcd.setCursor(0, 1);
+			lcd.print("Satellites: ");
+			lcd.print(gps.satellites.value());
+			delay(500);	
+
+
 			int store = logGPSData();
 			switch (store)
 			{
 				case 0:
 					Serial.println(F("-> Failed to store GPS data to SD log..."));
+					lcd.setRGB(250, 100, 10);
 					break;
 
 				case 1:
 					Serial.println(F("-> GPS Data stored in SD log!"));
 					last_log = millis();
+					break;
+
+				case 2:
+					Serial.println(F("-> No Invalid GPS Data..."));
+					lcd.setRGB(250, 50, 10);
 					break;
 
 				default:
@@ -120,6 +196,13 @@ void loop()
 		{
 			Serial.print(F("-> Waiting for better GPS data, Current Satellite Number: "));
 			Serial.println(gps.satellites.value());
+
+			lcd.clear();
+			lcd.setCursor(0, 0);
+			lcd.print("Satellite Number");
+			lcd.setCursor(7, 1);
+			lcd.print(gps.satellites.value());
+
 			delay(50);
 		}
 	}
@@ -147,86 +230,26 @@ int logGPSData()
 	if (logFile)
 	{ // Print longitude, latitude, altitude (in feet), speed (in mph), course
 	// in (degrees), date, time, and number of satellites.
-
 		if (gps.location.isValid())
 		{
 			logFile.print(gps.location.lat(), 6);
 			logFile.print(',');
 			logFile.print(gps.location.lng(), 6);
-			logFile.print(',');
+			logFile.println();
+			logFile.close();
+			return 1; // Return success
 		}
 		else
 		{
-			logFile.print(",,");
+			return 2;
 		}
-		char date[10];
-		if (gps.date.isValid())
-		{
-			sprintf(date, "%02d/%02d/%02d", gps.date.month(), gps.date.day(),gps.date.year());
-		}
-		else
-		{
-			sprintf(date, "");
-		}
-		logFile.print(date);
-		logFile.print(',');
-		char time[8];
-		if (gps.time.isValid())
-		{
-			sprintf(time, "%02d:%02d:%02d", gps.time.hour(), gps.time.minute(), gps.time.second());	
-		}
-		else 
-		{
-			sprintf(time, "");
-		}
-		logFile.print(time);
-		logFile.print(',');
-		if (gps.altitude.isValid())
-		{
-			logFile.print(gps.altitude.meters(), 1);
-		}
-		else
-		{
-			logFile.print(0, 1);
-		}
-		logFile.print(',');
-		logFile.print(gps.speed.kmph(), 1);
-		logFile.println();
-		logFile.close();
 
-		return 1; // Return success
 	}
 	else
 	{
 		return 0; // If we failed to open the file, return fail
 	}
 	
-}
-
-bool printHeader()
-{
-	File logFile = SD.open(file_name, FILE_WRITE);
-	if (logFile)
-	{
-		for(int i = 0; i < parameter_num; i++)
-		{
-			logFile.print(column_names[i]);
-			if (i < parameter_num - 1)
-			{
-				logFile.print(',');
-			}
-			else
-			{
-				logFile.println();
-			}
-		}
-		logFile.close();
-		return true;
-	}
-	else
-	{
-		return false;
-	}
 }
 
 void start_new_file()
@@ -238,13 +261,13 @@ void start_new_file()
 		if ( !SD.exists(file_name))
 		{	
 			Serial.print(file_name);
-			Serial.println(F(" create success."));
+			Serial.println(F(" Create Success! "));
 			break;
 		}
 		else if ( i == max_files-1 )
 		{
 			Serial.println(F("GPS Record Files Has Reach the MAX Number!\nPlease Clear the SD Log!"));
-			
+
 		}
 		else
 		{	
@@ -258,14 +281,13 @@ void start_new_file()
 			content.close();
 		}
 	}
-
 }
 
 static void printDateTime(TinyGPSDate &d, TinyGPSTime &t)
 {
 	if (!d.isValid())
 	{
-		Serial.print(F("****/**/** "));
+		Serial.print(F("****/**/**"));
 	}
 	else
 	{
@@ -276,7 +298,7 @@ static void printDateTime(TinyGPSDate &d, TinyGPSTime &t)
   
 	if (!t.isValid())
 	{
-		Serial.print(F("**:**:** "));
+		Serial.print(F("**:**:**"));
 	}
 	else
 	{
@@ -284,8 +306,6 @@ static void printDateTime(TinyGPSDate &d, TinyGPSTime &t)
 		sprintf(sz, "%02d:%02d:%02d ", t.hour(), t.minute(), t.second());
 		Serial.print(sz);
 	}
-
-//	smartDelay(0);
 }
 
 static void printInt(unsigned long val, bool valid, int len)
